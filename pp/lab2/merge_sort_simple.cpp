@@ -32,6 +32,6 @@ int main(int argc, char* argv[])
 		last = array[i];
 	}
 	free(array);
-	cout << array_size << ",merge_sort_simple," << diff_time << ",0" << endl;
+	cout << array_size << ",merge_sort_simple," << diff_time << endl;
 	return 0;
 }
