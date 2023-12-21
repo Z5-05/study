@@ -1,0 +1,6 @@
+# Ignore everything
+data/*
+
+# But not these files...
+!data/adult.data
+!data/adult.names

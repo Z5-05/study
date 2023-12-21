@@ -1,0 +1,6 @@
+# Ignore everything
+files/*
+
+# But not these files...
+!files/image.jpg
+!files/.gitkeep
