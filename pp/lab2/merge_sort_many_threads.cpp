@@ -4,9 +4,13 @@
 #include <time.h>
 #include "utils.cpp"
 #include <unistd.h>
-using namespace std;
+
 #pragma GCC diagnostic ignored "-Wreturn-type"
 
+using namespace std;
+
+const int MAX_THREADS = 4;
+int threads_count = 1;
 
 void* merge_sort_many_threads(void* arg)
 {		
@@ -20,23 +24,30 @@ void* merge_sort_many_threads(void* arg)
 	
     if (low < high) {
 
-		pthread_t thread1;
 		TASK* task1 = (TASK*)malloc(sizeof(TASK));
 		task1->low = low;
 		task1->high = mid;
 		task1->a = task->a;
 
-		pthread_t thread2;
 		TASK* task2 = (TASK*)malloc(sizeof(TASK));
 		task2->low = mid+1;
 		task2->high = high;
 		task2->a = task->a;
 
-        pthread_create(&thread1, NULL, merge_sort_many_threads, task1);
-        pthread_create(&thread2, NULL, merge_sort_many_threads, task2);
-        
-        pthread_join(thread1, NULL);
-        pthread_join(thread2, NULL);
+		if (threads_count >= MAX_THREADS)
+		{
+			merge_sort_many_threads(task1);
+		}
+		else 
+		{
+			++threads_count;
+			pthread_t new_thread;
+			pthread_create(&new_thread, NULL, merge_sort_many_threads, task1);
+			pthread_join(new_thread, NULL);
+			--threads_count;
+		}
+		merge_sort_many_threads(task2);
+
         merge(task->a, low, mid, high);
     }
 }
@@ -78,6 +89,6 @@ int main(int argc, char* argv[])
 		last = array[i];
 	}
 	free(array);
-	cout << array_size << ",merge_sort_many_threads," << diff_time << ",0" << endl;
+	cout << array_size << ",merge_sort_many_threads," << diff_time << endl;
 	return 0;
 }
