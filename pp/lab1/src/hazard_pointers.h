@@ -3,6 +3,7 @@
 #include <memory>
 #include <thread>
 #include <stdexcept>
+#include <iostream>
 
 
 unsigned int const max_hazard_pointers = 100;
@@ -27,6 +28,7 @@ hp_owner_t::hp_owner_t() :
 {
 	for( unsigned int i = 0; i < max_hazard_pointers; ++i ) {
 		std::thread::id old_id;
+		std::cout << old_id;
 		if( hazard_pointers[ i ].id.compare_exchange_strong( old_id, std::this_thread::get_id() ) ) {
 			m_hp = &hazard_pointers[ i ];
 			break;
