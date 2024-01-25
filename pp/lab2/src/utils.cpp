@@ -1,10 +1,3 @@
-struct TASK
-{
-	int low;
-	int high;
-	int* a;
-};
-
 void merge(int* a, int low, int mid, int high)
 {
     int* left = new int[mid - low + 1];

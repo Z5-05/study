@@ -1,16 +1,14 @@
 #include <iostream>
-#include <cstdlib>
 #include <pthread.h>
 #include <time.h>
 #include "utils.cpp"
 #include <unistd.h>
-
+#include <thread>
 #pragma GCC diagnostic ignored "-Wreturn-type"
 
 using namespace std;
 
-const int MAX_THREADS = 4;
-int threads_count = 1;
+const size_t MAX_THREADS = 8;
 
 struct TASK_merge
 {
@@ -54,15 +52,15 @@ int binary_search(int val, int* array, int p, int r)
 void* bs_threads_merge(void* arg)
 {	
 	int q1, q2, q3;
-	TASK_merge* TASK = (TASK_merge*)arg;
+	TASK_merge* task = (TASK_merge*)arg;
 
-	int n1 = TASK->high1 - TASK->low1 + 1;
-	int n2 = TASK->high2 - TASK->low2 + 1;
+	int n1 = task->high1 - task->low1 + 1;
+	int n2 = task->high2 - task->low2 + 1;
 
 	if (n1 < n2)
 	{
-		swap(TASK->low1, TASK->low2);
-		swap(TASK->high1, TASK->high2);
+		swap(task->low1, task->low2);
+		swap(task->high1, task->high2);
 		swap(n1, n2);
 	}
 
@@ -70,26 +68,17 @@ void* bs_threads_merge(void* arg)
 		return (void*)NULL;
 	else
 	{
-		q1 = (TASK->low1 + TASK->high1) / 2;
-		q2 = binary_search(TASK->T[q1], TASK->T, TASK->low2, TASK->high2);
-		q3 = TASK->low_base + (q1 - TASK->low1) + (q2 - TASK->low2);
-		TASK->array[q3] = TASK->T[q1];
+		q1 = (task->low1 + task->high1) / 2;
+		q2 = binary_search(task->T[q1], task->T, task->low2, task->high2);
+		q3 = task->low_base + (q1 - task->low1) + (q2 - task->low2);
+		task->array[q3] = task->T[q1];
 
-		TASK_merge* TASK1 = new TASK_merge(TASK->T, TASK->low1, q1 - 1, TASK->low2, q2 - 1, TASK->array, TASK->low_base);
-		if (threads_count >= MAX_THREADS)
-		{
-			bs_threads_merge(TASK1);
-		}
-		else 
-		{
-			++threads_count;
-			pthread_t new_thread;
-			pthread_create(&new_thread, NULL, bs_threads_merge, TASK1);
-			pthread_join(new_thread, NULL);
-			--threads_count;
-		}
-		TASK_merge* TASK2 = new TASK_merge(TASK->T, q1 + 1, TASK->high1, q2, TASK->high2, TASK->array, TASK->low_base+1);
-		bs_threads_merge(TASK2);
+		TASK_merge* task1 = new TASK_merge(task->T, task->low1, q1 - 1, task->low2, q2 - 1, 
+										   task->array, task->low_base);
+		bs_threads_merge(task1);
+		TASK_merge* task2 = new TASK_merge(task->T, q1 + 1, task->high1, q2, task->high2, 
+		                                   task->array, q3+1);
+		bs_threads_merge(task2);
 	}
 }
 
@@ -107,18 +96,7 @@ void* bs_threads_sort(void* arg)
 		int q2 = q1 - TASK->low + 1;
 
 		TASK_sort* TASK1 = new TASK_sort(TASK->A, TASK->low, q1, T, 1);
-		if (threads_count >= MAX_THREADS)
-		{
-			bs_threads_sort(TASK1);
-		}
-		else 
-		{
-			++threads_count;
-			pthread_t new_thread;
-			pthread_create(&new_thread, NULL, bs_threads_sort, TASK1);
-			pthread_join(new_thread, NULL);
-			--threads_count;
-		}
+		bs_threads_sort(TASK1);
 		TASK_sort* TASK2 = new TASK_sort(TASK->A, q1 + 1, TASK->high, T, q2 + 1);
 		bs_threads_sort(TASK2);
 
@@ -131,31 +109,74 @@ void* bs_threads_sort(void* arg)
  
 int main(int argc, char* argv[])
 {	
+	
 	int array_size = atoi(argv[1]);
 	float diff_time;
 	int* A = (int*)malloc(sizeof(int) * array_size);
 	int* B = (int*)malloc(sizeof(int) * array_size);
-    
+	
 	srand(clock());
 	for (int i = 0; i < array_size; i++)
 		A[i] = rand() % 10;
 
+	// cout << "Базовый массив:\n";
+	// for (int i = 0; i < array_size; i++)
+	// 	cout << A[i] << " ";
+	// cout << endl;
+
+	pthread_t* threads = (pthread_t*)malloc(sizeof(pthread_t) * MAX_THREADS);
+	TASK_sort* tasklist = (TASK_sort*)malloc(sizeof(TASK_sort) * MAX_THREADS);
+
+	int len = array_size / MAX_THREADS;
+
+	TASK_sort* task;
+	int low = 0;
 	clock_t time = clock();
-	TASK_sort* TASK = new TASK_sort(A, 0, array_size - 1, B, 0);
-	bs_threads_sort(TASK);
+
+	for (int i = 0; i < MAX_THREADS; i++, low += len)
+	{
+		task = &tasklist[i];
+		task->low = low;
+		task->high = low + len - 1;
+		task->low_base = low;
+		if (i == (MAX_THREADS - 1))
+			task->high = array_size - 1;
+	}
+
+	for (int i = 0; i < MAX_THREADS; i++)
+	{
+		task = &tasklist[i];
+		task->A = A;
+		task->B = B;
+		pthread_create(&threads[i], 0, bs_threads_sort, task);
+	}
+    
+	for (int i = 0; i < MAX_THREADS; i++)
+		pthread_join(threads[i], NULL);
+
+	TASK_sort* taskm = &tasklist[0];
+	for (int i = 1; i < MAX_THREADS; i++)
+	{
+		TASK_sort* task = &tasklist[i];
+		merge(taskm->B, taskm->low, task->low - 1, task->high);
+	}
+
 	diff_time = (clock() - time) / 1000.0L;
+
 
 	int last = 0;
 	for (int i = 0; i < array_size; i++)
 	{
 		if (B[i] < last)
 		{
-			cout << "Here is problem.\n";
 			throw std::exception();
 		}
 		last = B[i];
 	}
+
 	free(B);
+	free(tasklist);
+	free(threads);
 	cout << array_size << ",merge_sort_binary_search_threads," << diff_time << endl;
 	return 0;
 }
