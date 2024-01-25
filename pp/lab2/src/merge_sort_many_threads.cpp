@@ -3,9 +3,21 @@
 #include <time.h>
 #include "utils.cpp"
 #include <unistd.h>
+#include <thread>
 #pragma GCC diagnostic ignored "-Wreturn-type"
 
 using namespace std;
+
+const size_t MAX_THREADS = 8;
+
+struct TASK
+{
+	size_t low;
+	size_t high;
+	int* arr;
+	TASK(size_t low, size_t high, int* arr) :
+	low(low), high(high), arr(arr) {}
+};
 
 void* merge_sort_thread(void* arg)
 {
@@ -17,15 +29,14 @@ void* merge_sort_thread(void* arg)
     
     int mid = low + (high - low) / 2;
     if (low < high) {
-        merge_sort(task->a, low, mid);
-        merge_sort(task->a, mid + 1, high);
-        merge(task->a, low, mid, high);
+        merge_sort(task->arr, low, mid);
+        merge_sort(task->arr, mid + 1, high);
+        merge(task->arr, low, mid, high);
     }
 }
  
 int main(int argc, char* argv[])
 {	
-	int threads_num = atoi(argv[2]);
 	int array_size = atoi(argv[1]);
 
 	float diff_time;
@@ -35,40 +46,40 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < array_size; i++)
 		array[i] = rand();
 
-	pthread_t* threads = (pthread_t*)malloc(sizeof(pthread_t) * threads_num);
-	TASK* tasklist = (TASK*)malloc(sizeof(TASK) * threads_num);
+	pthread_t* threads = (pthread_t*)malloc(sizeof(pthread_t) * MAX_THREADS);
+	TASK* tasklist = (TASK*)malloc(sizeof(TASK) * MAX_THREADS);
 
-	int len = array_size / threads_num;
+	int len = array_size / MAX_THREADS;
 
 	TASK* task;
 	int low = 0;
 
 	clock_t time = clock();
 
-	for (int i = 0; i < threads_num; i++, low += len)
+	for (int i = 0; i < MAX_THREADS; i++, low += len)
 	{
 		task = &tasklist[i];
 		task->low = low;
 		task->high = low + len - 1;
-		if (i == (threads_num - 1))
+		if (i == (MAX_THREADS - 1))
 			task->high = array_size - 1;
 	}
 
-	for (int i = 0; i < threads_num; i++)
+	for (int i = 0; i < MAX_THREADS; i++)
 	{
 		task = &tasklist[i];
-		task->a = array;
+		task->arr = array;
 		pthread_create(&threads[i], 0, merge_sort_thread, task);
 	}
     
-	for (int i = 0; i < threads_num; i++)
+	for (int i = 0; i < MAX_THREADS; i++)
 		pthread_join(threads[i], NULL);
 
 	TASK* taskm = &tasklist[0];
-	for (int i = 1; i < threads_num; i++)
+	for (int i = 1; i < MAX_THREADS; i++)
 	{
 		TASK* task = &tasklist[i];
-		merge(taskm->a, taskm->low, task->low - 1, task->high);
+		merge(taskm->arr, taskm->low, task->low - 1, task->high);
 	}
 
 	diff_time = (clock() - time) / 1000.0L;
@@ -86,6 +97,6 @@ int main(int argc, char* argv[])
 	free(array);
 	free(tasklist);
 	free(threads);
-	cout << array_size << ",merge_sort_base_threads," << diff_time << "," << threads_num << endl;
+	cout << array_size << ",merge_sort_base_threads," << diff_time << endl;
 	return 0;
 }
